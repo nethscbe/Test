@@ -24,6 +24,8 @@ button { margin: 5px 0; }
 
 <input type="file" id="fileInput" accept="image/*">
 <button id="startCamera">Start Camera</button>
+<button id="stopCamera" style="display:none;">Stop Camera</button>
+
 <video id="preview" autoplay playsinline style="width:100%; max-width:400px; display:none;"></video>
 
 <div id="result"></div>
@@ -35,8 +37,12 @@ const warningEl = document.getElementById('warning');
 const video = document.getElementById('preview');
 const fileInput = document.getElementById('fileInput');
 const startCameraBtn = document.getElementById('startCamera');
+const stopCameraBtn = document.getElementById('stopCamera');
 const resultEl = document.getElementById('result');
 const resetBtn = document.getElementById('resetBtn');
+
+let stream = null;
+let scanning = false;
 
 function detectInAppBrowser() {
   const ua = navigator.userAgent || navigator.vendor || window.opera;
@@ -53,10 +59,8 @@ function showWarning(message) {
 }
 
 function extractUpiId(text) {
-  // Try UPI deep link format
   let match = text.match(/pa=([\w.\-]+@[\w]+)/i);
   if (match) return match[1];
-  // Try raw pattern like name@bank
   match = text.match(/[\w.\-]+@[\w]+/);
   return match ? match[0] : null;
 }
@@ -102,13 +106,17 @@ fileInput.addEventListener('change', e => {
 
 startCameraBtn.addEventListener('click', async () => {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     video.srcObject = stream;
     video.style.display = 'block';
+    stopCameraBtn.style.display = 'inline-block';
+    scanning = true;
+
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
 
     function scan() {
+      if (!scanning) return;
       if (video.readyState === video.HAVE_ENOUGH_DATA) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
@@ -117,8 +125,7 @@ startCameraBtn.addEventListener('click', async () => {
         const code = jsQR(imageData.data, canvas.width, canvas.height);
         if (code) {
           displayResult(code.data);
-          stream.getTracks().forEach(track => track.stop());
-          video.style.display = 'none';
+          stopCamera();
           return;
         }
       }
@@ -130,6 +137,17 @@ startCameraBtn.addEventListener('click', async () => {
   }
 });
 
+function stopCamera() {
+  scanning = false;
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+    stream = null;
+  }
+  video.style.display = 'none';
+  stopCameraBtn.style.display = 'none';
+}
+
+stopCameraBtn.addEventListener('click', stopCamera);
 resetBtn.addEventListener('click', resetResult);
 
 // Show warnings if in-app or not secure
