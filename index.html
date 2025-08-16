@@ -2,8 +2,8 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UPI QR Scanner</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body { font-family: sans-serif; margin: 20px; }
 #warning {
@@ -25,7 +25,6 @@ button, input[type="file"]::file-selector-button {
   color: white;
   cursor: pointer;
 }
-
 button:hover, input[type="file"]::file-selector-button:hover {
   background-color: #0056b3;
 }
@@ -46,6 +45,12 @@ video {
 button {
   margin: 8px 0;
 }
+
+#statusMsg {
+  margin-top: 10px;
+  color: green;
+  font-weight: bold;
+}
 </style>
 </head>
 <body>
@@ -57,10 +62,12 @@ button {
 <br>
 <button id="startCamera">📷 Start Camera</button>
 <button id="stopCamera" style="display:none;">✋ Stop Camera</button>
+<button id="flashToggle" style="display:none;">💡 Toggle Flash</button>
 
 <video id="preview" autoplay playsinline></video>
 
 <div id="result"></div>
+<div id="statusMsg"></div>
 <button id="resetBtn" style="display:none;">🔄 Reset</button>
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
@@ -70,11 +77,16 @@ const video = document.getElementById('preview');
 const fileInput = document.getElementById('fileInput');
 const startCameraBtn = document.getElementById('startCamera');
 const stopCameraBtn = document.getElementById('stopCamera');
+const flashToggleBtn = document.getElementById('flashToggle');
 const resultEl = document.getElementById('result');
 const resetBtn = document.getElementById('resetBtn');
+const statusMsg = document.getElementById('statusMsg');
 
 let stream = null;
 let scanning = false;
+let track = null;
+let imageCapture = null;
+let flashOn = false;
 
 function detectInAppBrowser() {
   const ua = navigator.userAgent || navigator.vendor || window.opera;
@@ -99,15 +111,30 @@ function extractUpiId(text) {
 
 function displayResult(payload) {
   const upiId = extractUpiId(payload) || 'Not found';
+  
+  // Copy automatically if found
+  if (upiId !== 'Not found') {
+    navigator.clipboard.writeText(upiId).then(() => {
+      statusMsg.textContent = 'UPI ID copied to clipboard';
+      if (navigator.vibrate) navigator.vibrate(20);
+    });
+  }
+
+  // Put UPI ID above raw payload
   resultEl.innerHTML = `
-    <p><strong>Raw Payload:</strong> ${payload} <button onclick="navigator.clipboard.writeText('${payload}')">Copy</button></p>
-    <p><strong>UPI ID:</strong> ${upiId} <button onclick="navigator.clipboard.writeText('${upiId}')">Copy</button></p>
+    <p><strong>UPI ID:</strong> ${upiId} 
+       <button onclick="navigator.clipboard.writeText('${upiId}')">Copy</button>
+    </p>
+    <p><strong>Raw Payload:</strong> ${payload} 
+       <button onclick="navigator.clipboard.writeText('${payload}')">Copy</button>
+    </p>
   `;
   resetBtn.style.display = 'inline-block';
 }
 
 function resetResult() {
   resultEl.innerHTML = '';
+  statusMsg.textContent = '';
   resetBtn.style.display = 'none';
   fileInput.value = ''; // Allow re-uploading same file
   stopCamera(); // Stop camera if running
@@ -144,7 +171,13 @@ startCameraBtn.addEventListener('click', async () => {
     video.srcObject = stream;
     video.style.display = 'block';
     stopCameraBtn.style.display = 'inline-block';
+    flashToggleBtn.style.display = 'inline-block';
     scanning = true;
+
+    track = stream.getVideoTracks()[0];
+    if ('ImageCapture' in window) {
+      imageCapture = new ImageCapture(track);
+    }
 
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -179,7 +212,18 @@ function stopCamera() {
   }
   video.style.display = 'none';
   stopCameraBtn.style.display = 'none';
+  flashToggleBtn.style.display = 'none';
 }
+
+flashToggleBtn.addEventListener('click', async () => {
+  if (!track) return;
+  try {
+    flashOn = !flashOn;
+    await track.applyConstraints({ advanced: [{ torch: flashOn }] });
+  } catch (err) {
+    alert('Flash not supported on this device/browser.');
+  }
+});
 
 stopCameraBtn.addEventListener('click', stopCamera);
 resetBtn.addEventListener('click', resetResult);
@@ -193,4 +237,3 @@ if (detectInAppBrowser()) {
 </script>
 </body>
 </html>
-
