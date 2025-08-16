@@ -116,7 +116,7 @@ function displayResult(payload) {
   if (upiId !== 'Not found') {
     navigator.clipboard.writeText(upiId).then(() => {
       statusMsg.textContent = 'UPI ID copied to clipboard';
-      if (navigator.vibrate) navigator.vibrate(20);
+      if (navigator.vibrate) navigator.vibrate(50);
     });
   }
 
@@ -237,3 +237,4 @@ if (detectInAppBrowser()) {
 </script>
 </body>
 </html>
+
